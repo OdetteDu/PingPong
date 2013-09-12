@@ -20,9 +20,6 @@ struct node {
   int socket;
   struct sockaddr_in client_addr;
   int pending_data; /* flag to indicate whether there is more data to send */
-  /* you will need to introduce some variables here to record
-     all the information regarding this socket.
-     e.g. what data needs to be sent next */
   struct node *next;
 };
 
@@ -96,10 +93,11 @@ int main(int argc, char **argv) {
   struct node *current, *next;
 
   /* a buffer to read data */
-  char *buf;
+  char *buf, *sendbuffer;
   int BUF_LEN = 1000;
 
   buf = (char *)malloc(BUF_LEN);
+  sendbuffer = (char *)malloc(BUF_LEN);
 
   /* initialize dummy head node of linked list */
   head.socket = -1;
@@ -139,11 +137,8 @@ int main(int argc, char **argv) {
       abort();
     }
 
-  /* now we keep waiting for incoming connections,
-     check for incoming data to receive,
-     check for ready socket to send more data */
   while (1)
-    {
+  {
 
       /* set up the file descriptor bit map that select should be watching */
       FD_ZERO (&read_set); /* clear everything */
@@ -156,18 +151,16 @@ int main(int argc, char **argv) {
       for (current = head.next; current; current = current->next) {
 	FD_SET(current->socket, &read_set);
 
-	if (current->pending_data) {
-	  /* there is data pending to be sent, monitor the socket
-             in the write set so we know when it is ready to take more
-             data */
+	if (current->pending_data)
+	{
 	  FD_SET(current->socket, &write_set);
 	}
 
-	if (current->socket > max) {
-	  /* update max if necessary */
+	if (current->socket > max)
+	{
 	  max = current->socket;
 	}
-      }
+ }
 
       time_out.tv_usec = 100000; /* 1-tenth of a second timeout */
       time_out.tv_sec = 0;
