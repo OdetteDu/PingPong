@@ -284,22 +284,8 @@ int main(int argc, char **argv)
 
 							send(current->socket, sendbuffer, sendbuffer[0]+1,0);
 							printf("Sent the time :%d %d.\n",(int)current_time.tv_sec,(int)current_time.tv_usec);
-							//  switch(buf[0]) {
-							//  case 1:
-							//      num = (char) *(char *)(buf+1);
-							//      break;
-							//  case 2:
-							//	  num = (short) ntohs(*(short *)(buf+1));
-							//	  break;
-							//  case 4:
-							//	  num = (int) ntohl(*(int *)(buf+1));
-							//	  break;
-							//  default:
-							//	  break;
-						}
 
-						//  printf("Received the number \"%d\". Client IP address is: %s\n",
-						//	 num, inet_ntoa(current->client_addr.sin_addr));
+						}
 					}
 				}
 			}
