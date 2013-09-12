@@ -186,7 +186,6 @@ int main(int argc, char **argv)
 		{
 			if (FD_ISSET(sock, &read_set)) /* check the server socket */
 			{
-				/* there is an incoming connection, try to accept it */
 				new_sock = accept (sock, (struct sockaddr *) &addr, &addr_len);
 
 				if (new_sock < 0)
@@ -195,27 +194,17 @@ int main(int argc, char **argv)
 					abort ();
 				}
 
-				/* make the socket non-blocking so send and recv will
-                 return immediately if the socket is not ready.
-                 this is important to ensure the server does not get
-                 stuck when trying to send data to a socket that
-                 has too much data to send already.
-				 */
 				if (fcntl (new_sock, F_SETFL, O_NONBLOCK) < 0)
 				{
 					perror ("making socket non-blocking");
 					abort ();
 				}
 
-				/* the connection is made, everything is ready */
-				/* let's see who's connecting to us */
 				printf("Accepted connection. Client IP address is: %s\n",
 						inet_ntoa(addr.sin_addr));
 
-				/* remember this client connection in our linked list */
 				add(&head, new_sock, addr);
 
-				/* let's send a message to the client just for fun */
 				count = send(new_sock, message, strlen(message)+1, 0);
 				if (count < 0)
 				{
@@ -224,9 +213,6 @@ int main(int argc, char **argv)
 				}
 			}
 
-			/* check other connected sockets, see if there is
-             anything to read or some socket is ready to send
-             more pending data */
 			for (current = head.next; current; current = next)
 			{
 				next = current->next;
@@ -234,43 +220,25 @@ int main(int argc, char **argv)
 				/* see if we can now do some previously unsuccessful writes */
 				if (FD_ISSET(current->socket, &write_set))
 				{
-					/* the socket is now ready to take more data */
-					/* the socket data structure should have information
-                 describing what data is supposed to be sent next.
-	         but here for simplicity, let's say we are just
-                 sending whatever is in the buffer buf
-					 */
 					count = send(current->socket, buf, BUF_LEN, MSG_DONTWAIT);
 					if (count < 0)
 					{
 						if (errno == EAGAIN)
 						{
-							/* we are trying to dump too much data down the socket,
-		     it cannot take more for the time being 
-		     will have to go back to select and wait til select
-		     tells us the socket is ready for writing
-							 */
+							
 						}
 						else
 						{
-							/* something else is wrong */
+
 						}
 					}
-					/* note that it is important to check count for exactly
-                 how many bytes were actually sent even when there are
-                 no error. send() may send only a portion of the buffer
-                 to be sent.
-					 */
 				}
 
 				if (FD_ISSET(current->socket, &read_set))
 				{
-					/* we have data from a client */
-
 					count = recv(current->socket, buf, BUF_LEN, 0);
 					if (count <= 0)
 					{
-						/* something is wrong */
 						if (count == 0)
 						{
 							printf("Client closed connection. Client IP address is: %s\n", inet_ntoa(current->client_addr.sin_addr));
@@ -280,34 +248,18 @@ int main(int argc, char **argv)
 							perror("error receiving from a client");
 						}
 
-						/* connection is closed, clean up */
 						close(current->socket);
 						dump(&head, current->socket);
 					}
 					else
 					{
-						/* we got count bytes of data from the client */
-						/* in general, the amount of data received in a recv()
-                   call may not be a complete application message. it
-                   is important to check the data received against
-                   the message format you expect. if only a part of a
-                   message has been received, you must wait and
-                   receive the rest later when more data is available
-                   to be read */
-
-						/* for this simple example, we expect the message to
-                   be a string, and the last byte of the string to be 0,
-		   i.e. end of string */
 						if (buf[count-1] != 0)
 						{
-							/* we got only a part of a string, we won't handle this in
-                     this simple example */
 							printf("Message incomplete, something is still being transmitted\n");
 							return 0;
 						}
 						else
 						{
-							/* a complete string is received, print it out */
 							printf("Received message \"%s\". Client IP address is: %s\n",
 									buf, inet_ntoa(current->client_addr.sin_addr));
 						}
