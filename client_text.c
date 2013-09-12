@@ -92,7 +92,13 @@ int main(int argc, char** argv) {
       free(sendbuffer);
       break;
     } else {
-      send(sock, sendbuffer, strlen(sendbuffer)+1, 0);
+		
+		if (strncmp(sendbuffer, "GET", 3)!=0)
+		{
+			  printf("You have entered invalid HTTP Request. Please try again.");
+		}
+
+		send(sock, sendbuffer, strlen(sendbuffer)+1, 0);
     }
   }
 
