@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 	int select_retval;
 
 	/* a silly message */
-	char *message = "Welcome! COMP/ELEC 429 Students!\n";
+	char *message = "<html>\n<head>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n<title>Untitled Document</title>\n</head>\n<body>\nHello,World\n</body>\n</html>";
 
 	/* number of bytes sent/received */
 	int count;
