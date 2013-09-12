@@ -26,23 +26,24 @@ int main(int argc, char** argv) {
   /* server port number */
   unsigned short server_port = atoi (argv[2]);
 
-  char *buffer;
+  char *receivebuffer,*sendbuffer;
   int size = 500;
   int count;
 
-  /* allocate a memory buffer in the heap */
-  /* putting a buffer on the stack like:
+  receivebuffer = (char *) malloc(size);
+  sendbuffer = (char *) malloc(size);
 
-         char buffer[500];
-
-     leaves the potential for
-     buffer overflow vulnerability */
-  buffer = (char *) malloc(size);
-  if (!buffer)
+  if (!receivebuffer)
     {
-      perror("failed to allocated buffer");
+      perror("failed to allocated receivebuffer");
       abort();
     }
+
+  if (!sendbuffer)
+  {
+	    perror("failed to allocated sendbuffer");
+		abort();
+  }
 
   /* create a socket */
   if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
@@ -64,46 +65,34 @@ int main(int argc, char** argv) {
       abort();
     }
 
-  /* everything looks good, since we are expecting a
-     message from the server in this example, let's try receiving a
-     message from the socket. this call will block until some data
-     has been received */
-  count = recv(sock, buffer, size, 0);
+  count = recv(sock, receivebuffer, size, 0);
   if (count < 0)
     {
       perror("receive failure");
       abort();
     }
 
-  /* in this simple example, the message is a string, 
-     we expect the last byte of the string to be 0, i.e. end of string */
-  if (buffer[count-1] != 0)
+  if (receivebuffer[count-1] != 0)
     {
-      /* In general, TCP recv can return any number of bytes, not
-	 necessarily forming a complete message, so you need to
-	 parse the input to see if a complete message has been received.
-         if not, more calls to recv is needed to get a complete message.
-      */
       printf("Message incomplete, something is still being transmitted\n");
     } 
   else
     {
-      printf("Here is what we got: %s", buffer);
+      printf("Here is what we got: %s",receivebuffer);
     }
 
   while (1) {
-    printf("Type something, hit enter: ");
-    fgets(buffer, size, stdin);
-    /* we will have the newline character \n in the buffer,
-       so wipe it out with a null to terminate the string */
-    buffer[strlen(buffer)-1] = 0;
-    if (strncmp(buffer, "bye", 3) == 0) {
+    printf("Please enter the get request: ");
+    fgets(sendbuffer, size, stdin);
+
+    sendbuffer[strlen(sendbuffer)-1] = 0;
+    if (strncmp(sendbuffer, "q", 1) == 0) {
       /* free the resources, generally important! */
       close(sock);
-      free(buffer);
+      free(sendbuffer);
       break;
     } else {
-      send(sock, buffer, strlen(buffer)+1, 0);
+      send(sock, sendbuffer, strlen(sendbuffer)+1, 0);
     }
   }
 
