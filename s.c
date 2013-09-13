@@ -14,11 +14,7 @@ char* getPath(char* str)
 	temp=malloc(sizeof(char) * 4);
 	strncpy(temp,str,3);
 	temp[4]='\0';
-	if(strcmp(temp,"GET")==0)
-	{
-		  printf("The first three character is GET\n");
-	}
-	else
+	if(!(strcmp(temp,"GET")==0))
 	{
 		  printf("Violate HTTP Protocol, the first three character is not GET\n");
 		  return 0;
@@ -43,7 +39,6 @@ char* getFile(char* root,char* path)
 	temp=malloc(sizeof(char)*(strlen(root)+strlen(path)));
 	strcat(temp,root);
 	strcat(temp,path);
-	printf(temp);
 	fd = open(temp, O_RDONLY);
 	count = read(fd, temp, BUF_LEN);
 	temp[count] = '\0';
@@ -61,6 +56,7 @@ int main()
 
 	path=getPath(s);
 	printf(path);
+	printf("\n");
 	file=getFile(root,path);
 	printf(file);
 	return 0;
