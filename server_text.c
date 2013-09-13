@@ -237,6 +237,8 @@ int main(int argc, char **argv)
 				if (FD_ISSET(current->socket, &read_set))
 				{
 					count = recv(current->socket, buf, BUF_LEN, 0);
+					buf[count] ='\0';
+					printf("Receive message: %s\n", buf);
 					if (count <= 0)
 					{
 						if (count == 0)
@@ -253,16 +255,8 @@ int main(int argc, char **argv)
 					}
 					else
 					{
-						if (buf[count-1] != 0)
-						{
-							printf("Message incomplete, something is still being transmitted\n");
-							return 0;
-						}
-						else
-						{
 							printf("Received message \"%s\". Client IP address is: %s\n",
 									buf, inet_ntoa(current->client_addr.sin_addr));
-						}
 					}
 				}
 			}
