@@ -34,13 +34,17 @@ char* getPath(char* str)
 	return temp;
 }
 
-*char getFile(*char path)
+*char getFile(*char root,*char path)
 {
 	int fd;
 	int count;
 	char *temp;
 
-	fd = open(path, O_RDONLY);
+	temp=malloc(sizeof(char)*(strlen(root)+strlen(path)));
+	strcat(temp,root);
+	strcat(temp,path);
+	printf(temp);
+	fd = open(temp, O_RDONLY);
 	count = read(fd, temp, BUF_LEN);
 	temp[count] = '\0';
 	return temp;
@@ -51,12 +55,13 @@ int main()
 {
 
 	char *s="GET /index.html HTTP/1.1 \r\n language Chinese \r\n\r\n";
+	char *root=".";
 	char *path;
 	char *file;
 
 	path=getPath(s);
 	printf(path);
-	file=getFile(path);
+	file=getFile(root,path);
 	printf(file);
 	return 0;
 }
