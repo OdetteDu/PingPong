@@ -34,7 +34,7 @@ char* getPath(char* str)
 	return temp;
 }
 
-*char getFile(*char root,*char path)
+char* getFile(char* root,char* path)
 {
 	int fd;
 	int count;
