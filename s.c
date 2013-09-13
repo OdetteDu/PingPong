@@ -1,31 +1,18 @@
 #include<stdio.h>
 #include<malloc.h>
 #include<fcntl.h>
+#include<string.h>
 
 #define BUF_LEN 1000
 
-int main()
+char* getPath(char* str)
 {
-	int fd;	
-	char *s="GET /index.html HTTP/1.1 \r\n language Chinese \r\n\r\n";
-	char *use;
-	int firstRN, count;
-	//char *rn = "\r\n";
+	int pos;
 	char *temp;
 
-	use = malloc(sizeof(char) * 1000);
-	temp = malloc(sizeof(char) * 1000);
-
-	printf("%s\n", s);
-
-
-	firstRN=strcspn(s, "\r\n");
-	strncpy(use,s,firstRN+1);
-	use[firstRN+1] = '\0';
-	printf("Result: %s\n", use);	
-
-
-	strncpy(temp,use,3);
+	//Check if the first three character is GET
+	temp=malloc(sizeof(char) * 4);
+	strncpy(temp,str,3);
 	temp[4]='\0';
 	if(strcmp(temp,"GET")==0)
 	{
@@ -36,22 +23,40 @@ int main()
 		  printf("Violate HTTP Protocol, the first three character is not GET\n");
 		  return 0;
 	}
+	free(temp);
 
-	use+=4;
+	//Get the path by getting the string after GET and before a space
+	str+=4;	  
+	pos=strcspn(str," ");
+	temp=malloc(sizeof(char) * (pos+1));
+	strncpy(temp,str,pos);
+	temp[pos+1]='\0';
+	return temp;
+}
 
-	printf("The new string is %s\n", use);
-			  
-	firstRN=strcspn(use," ");
-	strncpy(temp,use,firstRN);
-	temp[firstRN+1]='\0';
+*char getFile(*char path)
+{
+	int fd;
+	int count;
+	char *temp;
 
-	printf("The path is %s\n", temp);
+	fd = open(path, O_RDONLY);
+	count = read(fd, temp, BUF_LEN);
+	temp[count] = '\0';
+	return temp;
 
-	fd = open("./index.html", O_RDONLY);
+}
 
-	count = read(fd, use, BUF_LEN);
+int main()
+{
 
-	printf("%d\n", count);
-	use[count] = '\0';
-	printf("file content:\n%s\n", use);
+	char *s="GET /index.html HTTP/1.1 \r\n language Chinese \r\n\r\n";
+	char *path;
+	char *file;
+
+	path=getPath(s);
+	printf(path);
+	file=getFile(path);
+	printf(file);
+	return 0;
 }
