@@ -101,7 +101,7 @@ char* getFile(char* root,char* path)
 	strcat(temp,root);
 	strcat(temp,path);
 	fd = open(temp, O_RDONLY);
-	count = read(fd, file, BUF_LEN);
+	count = read(fd, file, 1000);
 	free(temp);
 	if(count<0)
 	{
@@ -167,6 +167,12 @@ int main(int argc, char **argv)
 	head.socket = -1;
 	head.next = 0;
 
+	printf(argv[2]);
+	printf(argv[3]);
+	temp=malloc(sizeof(char)*strlen(argv[2])+1);
+	strncpy(temp,argv[2],strlen(argv[2]));
+	temp[strlen(argv[2])]='\0';
+	printf(temp);
 	if(strcmp(argv[2],"WWW")==0)
 	{
 		isWWWMode=1;
