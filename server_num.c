@@ -12,10 +12,14 @@
 /**************************************************/
 /* a few simple linked list functions             */
 /**************************************************/
-
-
+char *message = "HTTP/1.1 200 OK \r\nContent-Type: text/html \r\n\r\n";
+char *message200 = "HTTP/1.1 200 OK \r\n";
+char *message400 ="HTTP/1.1 400 Bad Request \r\n";
+char *message404 ="HTTP/1.1 404 Not Found \r\n";
+char *message500 ="HTTP/1.1 500 Internal Server Error \r\n";
+char *message501 ="HTTP/1.1 501 Not Implemented \r\n";
 /* A linked list node data structure to maintain application
-   information related to a connected socket */
+information related to a connected socket */
 struct node
 {
 	int socket;
@@ -25,7 +29,7 @@ struct node
 };
 
 /* remove the data structure associated with a connected socket
-   used when tearing down the connection */
+used when tearing down the connection */
 void dump(struct node *head, int socket)
 {
 	struct node *current, *temp;
@@ -61,6 +65,59 @@ void add(struct node *head, int socket, struct sockaddr_in addr)
 	head->next = new_node;
 }
 
+char* getPath(char* str)
+{
+	int pos;
+	char *temp;
+
+	//Check if the first three character is GET
+	temp=malloc(sizeof(char) * 4);
+	strncpy(temp,str,3);
+	temp[4]='\0';
+	if(!(strcmp(temp,"GET")==0))
+	{
+		printf("Violate HTTP Protocol, the first three character is not GET\n");
+		return 0;
+	}
+	free(temp);
+
+	//Get the path by getting the string after GET and before a space
+	str+=4;	  
+	pos=strcspn(str," ");
+	temp=malloc(sizeof(char) * (pos+1));
+	strncpy(temp,str,pos);
+	temp[pos+1]='\0';
+	return temp;
+}
+
+char* getFile(char* root,char* path)
+{
+	int fd;
+	int count;
+	char *temp;
+	char *file;
+
+	temp=malloc(sizeof(char)*(strlen(root)+strlen(path)));
+	strcat(temp,root);
+	strcat(temp,path);
+	fd = open(temp, O_RDONLY);
+	count = read(fd, file, BUF_LEN);
+	free(temp);
+	if(count<0)
+	{
+		temp=malloc(sizeof(char)*(strlen(message404)));
+		temp=message404;
+	}
+	else
+	{
+		temp=malloc(sizeof(char)*count+strlen(message));
+		strcat(temp,message);
+		strcat(temp,file);
+	}
+	return temp;
+
+}
+
 
 /*****************************************/
 /* main program                          */
@@ -69,6 +126,9 @@ void add(struct node *head, int socket, struct sockaddr_in addr)
 /* simple server, takes one parameter, the server port number */
 int main(int argc, char **argv)
 {
+	int isWWWMode=0;
+	char *root;
+
 	/* socket and option variables */
 	int sock, new_sock, max;
 	int optval = 1;
@@ -88,21 +148,15 @@ int main(int argc, char **argv)
 	struct timeval time_out,current_time;
 	int select_retval;
 
-	/* a silly message */
-	char *message = "Welcome! COMP/ELEC 429 Students!\n";
-
 	/* number of bytes sent/received */
 	int count;
-
-	/* numeric value received */
-	//int num;
 
 	/* linked list for keeping track of connected sockets */
 	struct node head;
 	struct node *current, *next;
 
 	/* a buffer to read data */
-	char *buf,*sendbuffer;
+	char *buf,*sendbuffer, *temp;
 	int BUF_LEN = 1000;
 	int receivedTime_sec, receivedTime_usec;
 
@@ -112,6 +166,13 @@ int main(int argc, char **argv)
 	/* initialize dummy head node of linked list */
 	head.socket = -1;
 	head.next = 0;
+
+	if(strcmp(argv[2],"WWW")==0)
+	{
+		isWWWMode=1;
+		root=argv[3];
+		printf("Switch to WWW Mode. The root directory is %s", root);
+	}
 
 	/* create a server socket to listen for TCP connection requests */
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
@@ -209,7 +270,7 @@ int main(int argc, char **argv)
 				/* the connection is made, everything is ready */
 				/* let's see who's connecting to us */
 				printf("Accepted connection. Client IP address is: %s\n",
-						inet_ntoa(addr.sin_addr));
+					inet_ntoa(addr.sin_addr));
 
 				/* remember this client connection in our linked list */
 				add(&head, new_sock, addr);
@@ -251,7 +312,7 @@ int main(int argc, char **argv)
 						if (count == 0)
 						{
 							printf("Client closed connection. Client IP address is: %s\n",
-									inet_ntoa(current->client_addr.sin_addr));
+								inet_ntoa(current->client_addr.sin_addr));
 						}
 						else
 						{
@@ -272,18 +333,29 @@ int main(int argc, char **argv)
 						}
 						else
 						{
-							receivedTime_sec=(int) ntohl(*(int *)(buf+1));
-							receivedTime_usec=(int) ntohl(*(int *)(buf+5));
-							printf("Received the time: %d %d.\n",receivedTime_sec,receivedTime_usec);
+							if(!isWWWMode)
+							{
+								receivedTime_sec=(int) ntohl(*(int *)(buf+1));
+								receivedTime_usec=(int) ntohl(*(int *)(buf+5));
+								printf("Received the time: %d %d.\n",receivedTime_sec,receivedTime_usec);
 
-							gettimeofday(&current_time,NULL);
-							sendbuffer[0]=8;
+								gettimeofday(&current_time,NULL);
+								sendbuffer[0]=8;
 
-							*(int *)(sendbuffer+1)=(int) htonl(current_time.tv_sec);
-							*(int *)(sendbuffer+5)=(int) htonl(current_time.tv_usec);
+								*(int *)(sendbuffer+1)=(int) htonl(current_time.tv_sec);
+								*(int *)(sendbuffer+5)=(int) htonl(current_time.tv_usec);
 
-							send(current->socket, sendbuffer, sendbuffer[0]+1,0);
-							printf("Sent the time :%d %d.\n",(int)current_time.tv_sec,(int)current_time.tv_usec);
+								send(current->socket, sendbuffer, sendbuffer[0]+1,0);
+								printf("Sent the time :%d %d.\n",(int)current_time.tv_sec,(int)current_time.tv_usec);
+							}
+							else
+							{
+								temp=getPath(buf);
+								printf("Received get request with path: %s\n", temp);
+								sendbuffer=getFile(root,temp);
+								printf("The file will be send to client: \n%s\n",sendbuffer);
+								send(current->socket, sendbuffer, sendbuffer[0]+1,0);
+							}
 
 						}
 					}
