@@ -104,3 +104,154 @@ void add(struct node *head, int socket, struct sockaddr_in addr)
 	new_node->next = head->next;
 	head->next = new_node;
 }
+
+int newClient(int server_sock, struct node *head)
+{
+	/* Welcome message */
+	char *welmessage = "Welcome to my server! Yanfei Wu, Odette Du\n";
+	int count;
+
+	/* server socket address variables */
+	struct sockaddr_in addr;
+
+	/* socket address variables for a connected client */
+	socklen_t addr_len = sizeof(struct sockaddr_in);
+	
+	int new_sock = accept (server_sock, (struct sockaddr *) &addr, &addr_len);
+
+	if (new_sock < 0)
+	{
+		perror ("error accepting connection");
+		return -1;
+	}
+
+	if (fcntl (new_sock, F_SETFL, O_NONBLOCK) < 0)
+	{
+		perror ("making socket non-blocking");
+		return -2;
+	}
+
+	/* the connection is made, everything is ready */
+	/* let's see who's connecting to us */
+	printf("Accepted connection. Client IP address is: %s\n", inet_ntoa(addr.sin_addr));
+
+	/* remember this client connection in our linked list */
+	add(head, new_sock, addr);
+
+	/* let's send a message to the client just for fun */
+	/*
+	count = send(new_sock, welmessage, strlen(welmessage)+1, 0);
+	if (count < 0)
+	{
+		perror("error sending message to client");
+		dump(head, new_sock);
+		return -3;
+	}*/
+
+	return new_sock;
+}
+
+/* server is running */
+void runServer(int sock, int mode, char* rootDir)
+{
+	/* clients socket variables */
+	int new_sock, max;
+
+	/* variables for select */
+	fd_set read_set, write_set;
+	struct timeval time_out,current_time;
+	int select_retval;
+
+	/* number of bytes sent/received */
+	int count;
+
+	/* linked list for keeping track of connected sockets */
+	struct node head;
+	struct node *current, *next;
+
+	/* a buffer to read data */
+	char *buf,*sendbuffer, *temp;
+	int receivedTime_sec, receivedTime_usec;
+
+	buf = (char *)malloc(BUF_LEN);
+	sendbuffer = (char *)malloc(BUF_LEN);
+
+	/* initialize dummy head node of linked list */
+	head.socket = -1;
+	head.next = 0;
+
+	while (1)
+	{
+		FD_ZERO (&read_set);
+		FD_ZERO (&write_set);
+
+		FD_SET (sock, &read_set); /* put the listening socket in */
+		max = sock; /* initialize max */
+
+		for (current = head.next; current; current = current->next)
+		{
+			FD_SET(current->socket, &read_set);
+
+			if (current->pending_data)
+				FD_SET(current->socket, &write_set);
+
+			if (current->socket > max)
+				max = current->socket;
+		}
+
+		time_out.tv_usec = 100000;
+		time_out.tv_sec = 0;
+
+		select_retval = select(max+1, &read_set, &write_set, NULL, &time_out);
+		if (select_retval < 0)
+		{
+			perror ("select failed");
+			abort ();
+		}
+
+		if (select_retval == 0)
+		{
+			continue;
+		}
+
+		if (select_retval > 0)
+		{
+			if (FD_ISSET(sock, &read_set)) /* check the server socket */
+			{
+				/* there is an incoming connection, try to accept it */
+				new_sock = newClient(sock, &head);
+				if (new_sock < 0)
+					printf("accepting client error occurs. Error code: %d.\n", new_sock);
+			}
+
+			for (current = head.next; current; current = next)
+			{
+				next = current->next;
+
+				if (FD_ISSET(current->socket, &write_set))
+				{
+					count = send(current->socket, buf, BUF_LEN, MSG_DONTWAIT);
+					if (count < 0)
+					{
+						if (errno == EAGAIN)
+						{
+
+						}
+						else
+						{
+							/* something else is wrong */
+						}
+					}
+				}
+
+				if (FD_ISSET(current->socket, &read_set))
+				{
+					if (mode == MODE_PP)
+						PPreadClient(current, &head);
+					else if (mode == MODE_SV)
+						SVreadClient(current, &head, rootDir);
+				}
+			}
+		}
+	}
+}
