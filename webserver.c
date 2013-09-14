@@ -18,7 +18,7 @@ int checkProtocol(char* str)
 		return -1;
 
 	// check the "GET"
-	str[3] = '\0';
+	str[4] = '\0';
 	if (strcmp(str, "GET"))
 		return -1;
 	str += 4;
@@ -29,7 +29,7 @@ int checkProtocol(char* str)
 	
 	// check the "HTTP/1.1\r\n\r\n"
 	str++;
-	(str+10)[0] = '\0';
+	str[10] = '\0';
 	if (strcmp(str, "HTTP/1.1\r\n"))
 		return -1;
 
