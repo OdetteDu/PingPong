@@ -1,0 +1,5 @@
+
+Last change date: 22:10 on Sep 13th, 2013
+
+How compile the server:
+> gcc server_num.c common.c pingpong.c webserver.c
