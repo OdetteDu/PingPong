@@ -24,7 +24,7 @@ void PPreadClient(struct node *current, struct node *head)
 		dump(head, current->socket);
 	}
 	else {
-		if ((int) ntohs(*(short*)buf) != count) {
+		if ((int) ntohs(*(unsigned short*)buf) != count) {
 			printf("Message incomplete, something is still being transmitted.\n");
 			printf("CLose this client: IP: %s\n", inet_ntoa(current->client_addr.sin_addr));
 			close(current->socket);
@@ -34,22 +34,24 @@ void PPreadClient(struct node *current, struct node *head)
 		else {
 			if (count < 10)
 			{
-				sendLen = 11 + strlen(errorMsg);
 				printf("message doesn't comply ping-pong protocol");
-				*buf = (short) htons(11 + strlen(errorMsg));
-				*(int *)(buf + 2) = 0;
-				*(int *)(buf + 6) = 0;
+				sendLen = 11 + strlen(errorMsg);
+				*buf = (unsigned short) htons(11 + strlen(errorMsg));
+				*(int *)(buf + 2) = (int)0;
+				*(int *)(buf + 6) = (int)0;
 				buf[10] = '\0';
 				strcat(buf, errorMsg);
 			}
 			else {
-				sendLen = (int) ntohs(*(short *)buf);
+				sendLen = (int) ntohs(*(unsigned short *)buf);
 				receivedTime_sec=(int) ntohl(*(int *)(buf+2));
 				receivedTime_usec=(int) ntohl(*(int *)(buf+6));
+				buf[sendLen] = '\0';
 				printf("Received the time: %d %d.\n", receivedTime_sec, receivedTime_usec);
+				printf("Received the data: %s\n\n", buf+10);
 			}
 
-			send(current->socket, buf, sendLen ,0);
+			send(current->socket, buf, sendLen,0);
 		}
 	}
 }
