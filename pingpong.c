@@ -5,8 +5,7 @@ char *errorMsg = "your message is wrong!";
 void PPreadClient(struct node *current, struct node *head)
 {
 	char buf[BUF_LEN];
-	char sendbuffer[100];
-	int receivedTime_sec = 0, receivedTime_usec = 0, count;
+	int receivedTime_sec = 0, receivedTime_usec = 0, count, sendLen;
 	struct timeval current_time;
 
 	count = recv(current->socket, buf, BUF_LEN, 0);
@@ -25,7 +24,7 @@ void PPreadClient(struct node *current, struct node *head)
 		dump(head, current->socket);
 	}
 	else {
-		if (*(short*)buf != count) {
+		if ((int) ntohs(*(short*)buf) != count) {
 			printf("Message incomplete, something is still being transmitted.\n");
 			printf("CLose this client: IP: %s\n", inet_ntoa(current->client_addr.sin_addr));
 			close(current->socket);
@@ -35,6 +34,7 @@ void PPreadClient(struct node *current, struct node *head)
 		else {
 			if (count < 10)
 			{
+				sendLen = 11 + strlen(errorMsg);
 				printf("message doesn't comply ping-pong protocol");
 				*buf = (short) htons(11 + strlen(errorMsg));
 				*(int *)(buf + 2) = 0;
@@ -43,12 +43,13 @@ void PPreadClient(struct node *current, struct node *head)
 				strcat(buf, errorMsg);
 			}
 			else {
+				sendLen = (int) ntohs(*(short *)buf);
 				receivedTime_sec=(int) ntohl(*(int *)(buf+2));
 				receivedTime_usec=(int) ntohl(*(int *)(buf+6));
 				printf("Received the time: %d %d.\n", receivedTime_sec, receivedTime_usec);
 			}
 
-			send(current->socket, buf, buf[0],0);
+			send(current->socket, buf, sendLen ,0);
 		}
 	}
 }
