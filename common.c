@@ -4,6 +4,8 @@
  * param: the same as main routine
  * return: negative if no paramters; positive value indicates running mode
  */
+
+//asdasdsadasdasd
 int checkmode(int argc, char* argv[])
 {
 	if (argc < 2)
