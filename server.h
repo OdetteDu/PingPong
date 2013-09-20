@@ -43,6 +43,7 @@ void PPreadClient(struct node *current, struct node *head);
 
 /* functions in webserver.c */
 int checkProtocol(char* str);
+int checkPath(char* path);
 int getFile(char* root, char* path);
 int sendData(int fd, off_t offset, struct node *client);
 void sendFile(int fd, off_t offset, struct node *current, struct node *head);

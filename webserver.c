@@ -38,6 +38,19 @@ int checkProtocol(char* str)
 	return 0;
 }
 
+/* Check if the request path violates the security requirement.
+ * param: string of path
+ * return: 0 if OK, negative value indicates error code
+ * Error code map: -1: Bad Request
+ */
+int checkPath(char* path)
+{
+	if (strstr(path,"../"))
+		return -1;
+	else
+		return 0;
+}
+
 /* try to access the file with file path
  * return: file descriptor is OK, negative value indicates error code
  * Error code map: -2: Not Found
@@ -189,7 +202,7 @@ void SVreadClient(struct node *current, struct node *head, char *rootDir)
 	}
 	else {
 		/* check if received request complies the protocol */
-		if ((ret = checkProtocol(buf)) != 0) {
+		if ((ret = checkProtocol(buf)) != 0 || checkPath(buf+4) != 0) {
 			send(current->socket, rspMsg[1], strlen(rspMsg[1]), 0);
 			printf("***Bad Requst from: %s\n\n", inet_ntoa(current->client_addr.sin_addr));
 			close(current->socket);
