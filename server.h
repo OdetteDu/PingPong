@@ -40,6 +40,7 @@ void runServer(int sock, int mode, char* rootDir);
 
 /* functions in pingpong.c */
 void PPreadClient(struct node *current, struct node *head);
+void pingpongSendAgain(struct node *current, struct node *head);
 
 /* functions in webserver.c */
 int checkProtocol(char* str);

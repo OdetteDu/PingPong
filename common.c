@@ -240,19 +240,35 @@ void runServer(int sock, int mode, char* rootDir)
 
 				if (FD_ISSET(current->socket, &write_set))
 				{
-					count = send(current->socket, current->sendbuf, BUF_LEN, MSG_DONTWAIT);
-					if (count < 0 && errno != EAGAIN)
+					if (mode == MODE_PP) {
+						pingpongSendAgain(current, &head);
+						continue;
+					}
+
+					count = send(current->socket, current->sendbuf, current->pending_data, MSG_DONTWAIT);
+					if (count <= 0)
 					{
-						/* something is wrong, so shut down the client */
-						printf("Some sending procedure goes wrong.\n");
-						printf("CLose this client: IP: %s\n", inet_ntoa(current->client_addr.sin_addr));
-						close(current->socket);
-						dump(&head, current->socket);
+						if (errno == EAGAIN) continue;
+						if (count == 0) {
+							printf("Client closed connection. Client IP address is: %s\n",
+								inet_ntoa(current->client_addr.sin_addr));
+							/* connection is closed, clean up */
+							close(current->socket);
+							dump(&head, current->socket);
+						}
+						else {
+							perror("Some sending procedure goes wrong");
+							/* connection is closed, clean up */
+							close(current->socket);
+							dump(&head, current->socket);
+						}
 					}
 					else {
 						/* update the pending_date value*/
 						current->pending_data -= count;
 					}
+
+					continue;
 				}
 
 				if (FD_ISSET(current->socket, &read_set))
@@ -260,11 +276,11 @@ void runServer(int sock, int mode, char* rootDir)
 					if (mode == MODE_PP)
 						PPreadClient(current, &head);
 					else if (mode == MODE_SV) {
-						if (current->pending_fd > 0 && current->pending_data == 0)
-							// unfinished HTTP request
-							sendFile(current->pending_fd, current->pending_index, current, &head);
-						else
-							// new HTTP requent
+						if (current->pending_fd > 0) {
+							if (current->pending_data == 0) // unfinished HTTP request
+								sendFile(current->pending_fd, current->pending_index, current, &head);
+						}
+						else	// new HTTP requent
 							SVreadClient(current, &head, rootDir);
 					}
 				}
