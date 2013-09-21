@@ -14,6 +14,21 @@ int checkmode(int argc, char* argv[])
 		return MODE_SV;
 }
 
+/* check if the root directory exists
+ * param: the path will be checked
+ * return: 0 if exists, -1 otherwise
+ */
+int checkRoot(char *str)
+{
+	FILE *fp = fopen(str, "r");
+	if (fp == NULL)
+		return -1;
+	else {
+		fclose(fp);
+		return 0;
+	}
+}
+
 /* initialize socket and setups the listen 
  * param: listening port
  * return: server socket
@@ -82,6 +97,8 @@ void dump(struct node *head, int socket)
 		{
 			temp = current->next;
 			current->next = temp->next;
+			if (temp->sendbuf != NULL)
+				free(temp->sendbuf);
 			free(temp);
 			return;
 		}
@@ -100,7 +117,10 @@ void add(struct node *head, int socket, struct sockaddr_in addr)
 	new_node = (struct node *)malloc(sizeof(struct node));
 	new_node->socket = socket;
 	new_node->client_addr = addr;
+	new_node->sendbuf = NULL;
 	new_node->pending_data = 0;
+	new_node->pending_fd = -1;
+	new_node->pending_index = -1;
 	new_node->next = head->next;
 	head->next = new_node;
 }
@@ -137,16 +157,6 @@ int newClient(int server_sock, struct node *head)
 
 	/* remember this client connection in our linked list */
 	add(head, new_sock, addr);
-
-	/* let's send a message to the client just for fun */
-	/*
-	count = send(new_sock, welmessage, strlen(welmessage)+1, 0);
-	if (count < 0)
-	{
-		perror("error sending message to client");
-		dump(head, new_sock);
-		return -3;
-	}*/
 
 	return new_sock;
 }
@@ -230,26 +240,49 @@ void runServer(int sock, int mode, char* rootDir)
 
 				if (FD_ISSET(current->socket, &write_set))
 				{
-					count = send(current->socket, buf, BUF_LEN, MSG_DONTWAIT);
-					if (count < 0)
-					{
-						if (errno == EAGAIN)
-						{
+					if (mode == MODE_PP) {
+						pingpongSendAgain(current, &head);
+						continue;
+					}
 
+					count = send(current->socket, current->sendbuf, current->pending_data, MSG_DONTWAIT);
+					if (count <= 0)
+					{
+						if (errno == EAGAIN) continue;
+						if (count == 0) {
+							printf("Client closed connection. Client IP address is: %s\n",
+								inet_ntoa(current->client_addr.sin_addr));
+							/* connection is closed, clean up */
+							close(current->socket);
+							dump(&head, current->socket);
 						}
-						else
-						{
-							/* something else is wrong */
+						else {
+							perror("Some sending procedure goes wrong");
+							/* connection is closed, clean up */
+							close(current->socket);
+							dump(&head, current->socket);
 						}
 					}
+					else {
+						/* update the pending_date value*/
+						current->pending_data -= count;
+					}
+
+					continue;
 				}
 
 				if (FD_ISSET(current->socket, &read_set))
 				{
 					if (mode == MODE_PP)
 						PPreadClient(current, &head);
-					else if (mode == MODE_SV)
-						SVreadClient(current, &head, rootDir);
+					else if (mode == MODE_SV) {
+						if (current->pending_fd > 0) {
+							if (current->pending_data == 0) // unfinished HTTP request
+								sendFile(current->pending_fd, current->pending_index, current, &head);
+						}
+						else	// new HTTP requent
+							SVreadClient(current, &head, rootDir);
+					}
 				}
 			}
 		}

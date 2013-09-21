@@ -20,12 +20,18 @@ struct node
 {
 	int socket;
 	struct sockaddr_in client_addr;
-	int pending_data; /* flag to indicate whether there is more data to send */
 	struct node *next;
+	
+	/* for sending pending data */
+	char *sendbuf;		// pending data buffer
+	int pending_data;	// size of pending data (byte) inside the buffer
+	int pending_fd;		// file descriptor to file which is still being sent
+	off_t pending_index;	// index inside the pending file
 };
 
 /* functions in common.c */
 int checkmode(int argc, char* argv[]);
+int checkRoot(char *str);
 int establish(unsigned short server_port);
 void dump(struct node *head, int socket);
 void add(struct node *head, int socket, struct sockaddr_in addr);
@@ -34,9 +40,12 @@ void runServer(int sock, int mode, char* rootDir);
 
 /* functions in pingpong.c */
 void PPreadClient(struct node *current, struct node *head);
+void pingpongSendAgain(struct node *current, struct node *head);
 
 /* functions in webserver.c */
 int checkProtocol(char* str);
+int checkPath(char* path);
 int getFile(char* root, char* path);
-int sendFile(int fd, struct node *client);
+int sendData(int fd, off_t offset, struct node *client);
+void sendFile(int fd, off_t offset, struct node *current, struct node *head);
 void SVreadClient(struct node *current, struct node *head, char *rootDir);

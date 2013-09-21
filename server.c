@@ -24,6 +24,7 @@ int main(int argc, char **argv)
 	/* check the server mode through paramters */
 	if ((server_mode = checkmode(argc, argv)) < 0) {
 		printf("***Error***\n\tparamters are invalid\n\tPlease try again.\n");
+		printf("usage: %s [port] <www> <root directory>. 'www' and root must exist at the same time.\n", argv[0]);
 		exit(0);
 	}
 	
@@ -36,8 +37,14 @@ int main(int argc, char **argv)
 		runServer(sock, server_mode, NULL);
 		break;
 	case MODE_SV:
-		if (argc < 4)
-			runServer(sock, server_mode, defRoot);
+		if (argc < 4) {
+			printf("***Error***\n\tRoot Directory missing.\n");
+			exit(0);
+		}
+		else if (checkRoot(argv[3]) != 0) {
+			printf("***Error***\n\tRoot DIrectory not found!\n");
+			exit(0);
+		}
 		else
 			runServer(sock, server_mode, argv[3]);
 		break;

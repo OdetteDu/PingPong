@@ -14,11 +14,11 @@ char *rspMsg[] = {	"HTTP/1.1 200 OK \r\nContent-type: text/html \r\n\r\n",
 int checkProtocol(char* str)
 {
 	// check the length
-	if (strlen(str) < 3)
+	if ((strlen(str) < 3) || (str[3] != ' '))
 		return -1;
 
 	// check the "GET"
-	str[4] = '\0';
+	str[3] = '\0';
 	if (strcmp(str, "GET"))
 		return -1;
 	str += 4;
@@ -27,7 +27,7 @@ int checkProtocol(char* str)
 	while (str[0] != ' ')
 		str++;
 	
-	// check the "HTTP/1.1\r\n\r\n"
+	// check the "HTTP/1.1\r\n"
 	str++;
 	str[10] = '\0';
 	if (strcmp(str, "HTTP/1.1\r\n"))
@@ -38,6 +38,19 @@ int checkProtocol(char* str)
 	return 0;
 }
 
+/* Check if the request path violates the security requirement.
+ * param: string of path
+ * return: 0 if OK, negative value indicates error code
+ * Error code map: -1: Bad Request
+ */
+int checkPath(char* path)
+{
+	if (strstr(path,"../"))
+		return -1;
+	else
+		return 0;
+}
+
 /* try to access the file with file path
  * return: file descriptor is OK, negative value indicates error code
  * Error code map: -2: Not Found
@@ -45,45 +58,66 @@ int checkProtocol(char* str)
 int getFile(char* root, char* path)
 {
 	int fd;
-	const int rootLen = strlen(root), pathLen = strlen(path);
+	FILE *fp;
+	int rootLen = strlen(root), pathLen = strlen(path);
 	char *temp = malloc(sizeof(char) * (rootLen + pathLen + 1));
 
 	// get the real path of file
 	temp[0] = '\0';
 	strcat(temp,root);
 	temp[rootLen] = '\0';
-	strcat(temp,path);
+	if (pathLen == 1 && path[0] == '/') {
+		strcat(temp, "/index.html");
+		pathLen = 11;
+	}
+	else
+		strcat(temp,path);
 	temp[rootLen + pathLen] = '\0';
+
+	/* check if the file exists */
+	fp = fopen(temp, "r");
 	fd = open(temp, O_RDONLY);
 	free(temp);
 
 	// check if file can be read
-	if (fd < 0)
+	if (fp == NULL)
 		return -2;	// file not found
-	else
+	else {
+		fclose(fp);	// free the testing pointer
 		return fd;	// file can be read, return the descriptor
+	}
 }
 
-/* Send requested file to client
+/* Send requested data to client
  * param: fd is descriptor of the file will be sent, client is the target
+ *        offset is the offset of the beginning data inside the file
  * return: 0 if OK, negative value indicates error code
  * Error code map: -3: Internal Server Error
  */
-int sendFile(int fd, struct node *client)
+int sendData(int fd, off_t offset, struct node *client)
 {
-	char buf[BUF_LEN];
+	char buf[BUF_LEN+1];
 	char *temp;
 	int readCount, sendCount;
 
-	sendCount = send(client->socket, rspMsg[0], strlen(rspMsg[0]), 0);
+	if (client->pending_fd < 0)
+		/* this is the new request */
+		sendCount = send(client->socket, rspMsg[0], strlen(rspMsg[0]), 0);
 
 	if (sendCount < 0) {
 		perror("error sending HTTP head to a client");
 		return -3;
 	}
 
+	readCount = lseek(fd, offset, SEEK_SET);
+	if (readCount < 0) {
+		perror("error seeking position in file");
+		return -3;
+	}
+
 	readCount = read(fd, buf, BUF_LEN);
 	if (readCount < 0) {
+		/* Some internal error occurs */
 		perror("error reading from file");
 		return -3;
 	}
@@ -92,15 +126,57 @@ int sendFile(int fd, struct node *client)
 		temp = buf;
 		while (readCount) {
 			sendCount = send(client->socket, temp, readCount, 0);
+			if (sendCount < 0) {
+				/* stop sending and start to backup */
+				if (errno == EAGAIN) {
+					/* nothing goes wrong, just need to be sent again */
+					temp[readCount] = '\0';
+					if (client->sendbuf != NULL)
+						free(client->sendbuf);
+					client->sendbuf = (char*)malloc(sizeof(char) * (BUF_LEN + 1));
+					strcpy(client->sendbuf, temp);
+					client->pending_data = readCount;
+					client->pending_fd = fd;
+					client->pending_index = lseek(fd, 0, SEEK_CUR);
+					return 0;
+				}
+				else {
+					/* Some internal error occurs */
+					perror("error reading from file");
+					return -3;
+				}
+			}
 			readCount -= sendCount;
 			temp += sendCount;
 		}
 		readCount = read(fd, buf, BUF_LEN);
 	}
 
-	printf("Finish Sending file. Client IP address is: %s\n",
-		inet_ntoa(client->client_addr.sin_addr));
+	/* finish sending the file, reset the pending value in client node */
+	client->pending_fd = -1;
+	client->pending_index = -1;
 	return 0;
+}
+
+/* Send requested file to client
+ * param: fd is descriptor of the file will be sent, client is the target
+ *        offset is the offset of the beginning data inside the file
+ */
+void sendFile(int fd, off_t offset, struct node *current, struct node *head) {
+	if (sendData(fd, offset, current) != 0) {
+		send(current->socket, rspMsg[3], strlen(rspMsg[3]), 0);
+		printf("***Internal Error when connecting with: %s\n\n", inet_ntoa(current->client_addr.sin_addr));
+		close(current->socket);
+		dump(head, current->socket);
+		return;
+	}
+
+	if (current->pending_fd < 0) {
+		/* connection is closed, clean up */
+		printf("Finish Sending file. Client IP address is: %s\n", inet_ntoa(current->client_addr.sin_addr));
+		close(current->socket);
+		dump(head, current->socket);
+	}
 }
 
 void SVreadClient(struct node *current, struct node *head, char *rootDir)
@@ -126,7 +202,7 @@ void SVreadClient(struct node *current, struct node *head, char *rootDir)
 	}
 	else {
 		/* check if received request complies the protocol */
-		if ((ret = checkProtocol(buf)) != 0) {
+		if ((ret = checkProtocol(buf)) != 0 || checkPath(buf+4) != 0) {
 			send(current->socket, rspMsg[1], strlen(rspMsg[1]), 0);
 			printf("***Bad Requst from: %s\n\n", inet_ntoa(current->client_addr.sin_addr));
 			close(current->socket);
@@ -143,16 +219,6 @@ void SVreadClient(struct node *current, struct node *head, char *rootDir)
 			return;
 		}
 
-		if (sendFile(ret, current) != 0) {
-			send(current->socket, rspMsg[3], strlen(rspMsg[3]), 0);
-			printf("***Internal Error when connecting with: %s\n\n", inet_ntoa(current->client_addr.sin_addr));
-			close(current->socket);
-			dump(head, current->socket);
-			return;
-		}
-
-		/* connection is closed, clean up */
-		close(current->socket);
-		dump(head, current->socket);
+		sendFile(ret, 0, current, head);
 	}
 }
