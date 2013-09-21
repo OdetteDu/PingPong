@@ -172,10 +172,10 @@ void sendFile(int fd, off_t offset, struct node *current, struct node *head) {
 	}
 
 	if (current->pending_fd < 0) {
-		/* connection is closed, clean up */
 		printf("Finish Sending file. Client IP address is: %s\n", inet_ntoa(current->client_addr.sin_addr));
 		close(current->socket);
 		dump(head, current->socket);
+		close(fd);
 	}
 }
 
