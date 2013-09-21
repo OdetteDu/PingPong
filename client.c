@@ -8,8 +8,9 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/time.h>
+#include <string.h>
 
-/* ping-pong client, Kai Wu's version 0. takes four parameters, the server host name,
+/* ping-pong client, Kai Wu's version 1. takes four parameters, the server host name,
  the server port number, size of message to send and No. of message exchanges to perform
  
  ->
@@ -24,39 +25,37 @@
 
 int main(int argc, char** argv) {
 
-    /* our client socket */
-    int sock;
+  /* our client socket */
+  int sock;
 
-    /* address structure for identifying the server */
-    struct sockaddr_in sin;
+  /* address structure for identifying the server */
+  struct sockaddr_in sin;
 
-    /* convert server domain name to IP address */
-    struct hostent *host = gethostbyname(argv[1]);
-    unsigned int server_addr = *(unsigned int *) host->h_addr_list[0];
+  /* convert server domain name to IP address */
+  struct hostent *host = gethostbyname(argv[1]);
+  unsigned int server_addr = *(unsigned int *) host->h_addr_list[0];
 
-    /* server port number */
-    unsigned short server_port = atoi (argv[2]);
+  /* server port number */
+  unsigned short server_port = atoi (argv[2]);
 
-    char *buffer, *sendbuffer, *stdinBuffer, *data;
-    int size = 500;
-    int count;
-    int num;
-
-    struct timeval time;				//get the current time
-    unsigned short inputSize = atoi(argv[3]);		//The size in bytes of each message to send (10 <= size <= 65,535).
-    int inputCount = atoi(argv[4]);			// The number of message exchanges to perform (1 <= count <= 10,000)
-    int messagesentSEC = 0, messagesentUSEC= 0;		//the time message sent;
-    int messagegetSEC= 0, messagegetUSEC= 0;		//the time message receive;
-    int durationSEC= 0, durationUSEC= 0;		//the time data traveled
-    int totalLatencySEC= 0, totalLatencyUSEC= 0;	//the total latency
+  char *buffer, *sendbuffer, *stdinBuffer;
+  struct timeval time; //get the current time
+    char* inputSizecheck = argv[3];
+    int inputSizecheckint = atoi(argv[3]);
+    unsigned short inputSize = atoi(argv[3]); //The size in bytes of each message to send (10 <= size <= 65,535).
+    int inputCount = atoi(argv[4]); // The number of message exchanges to perform (1 <= count <= 10,000)
+    int messagesentSEC = 0, messagesentUSEC= 0; //the time message sent;
+    int messagegetSEC= 0, messagegetUSEC= 0;//the time message receive;
+    int durationSEC= 0, durationUSEC= 0; //the time data traveled
+    int totalLatencySEC= 0, totalLatencyUSEC= 0; //the total latency
     float avgLatencySEC = 0;
-    float avgLatencyUSEC = 0; 				//the avg. latency
-    int result; int remainer; 				//used in calculation the avg. latency
-    int avgUSEC = 0;					//avg. time
-    int i,x,datasize,looptime;
+    float avgLatencyUSEC = 0; //the avg. latency
+    int result; int remainer; //used in calculation the avg. latency
+    int i,x,datasize,looptime,sendcount,returncount,u,alreadysend;
     
+    u = strlen(inputSizecheck);
     /*validate the inputSize*/
-    if (inputSize < 10) {
+    if (inputSize < 10 || inputSizecheck[0] == '-' || u > 5 || inputSizecheckint > 65535) {
         perror("the assigned size for each message to send should between 10 and 65535");
         abort();
     }
@@ -67,53 +66,95 @@ int main(int argc, char** argv) {
         abort();
     }
 
-    /* allocate a memory buffer in the heap */
-    buffer = (char *) malloc(inputSize);
-    if (!buffer)
+  /* allocate a memory buffer in the heap */
+  /* putting a buffer on the stack like:
+
+         char buffer[500];
+
+     leaves the potential for
+     buffer overflow vulnerability */
+  buffer = (char *) malloc(inputSize);
+  if (!buffer)
     {
       perror("failed to allocated buffer");
       abort();
     }
 
-    sendbuffer = (char *) malloc(inputSize);
-    if (!sendbuffer)
+  sendbuffer = (char *) malloc(inputSize);
+  if (!sendbuffer)
     {
       perror("failed to allocated sendbuffer");
       abort();
     }
 
 
-    /* create a socket */
-    if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+  /* create a socket */
+  if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
     {
       perror ("opening TCP socket");
       abort ();
     }
 
-    /* fill in the server's address */
+  /* fill in the server's address */
   memset (&sin, 0, sizeof (sin));
   sin.sin_family = AF_INET;
   sin.sin_addr.s_addr = server_addr;
   sin.sin_port = htons(server_port);
 
-    /* connect to the server */
-    if (connect(sock, (struct sockaddr *) &sin, sizeof (sin)) < 0)
+  /* connect to the server */
+  if (connect(sock, (struct sockaddr *) &sin, sizeof (sin)) < 0)
     {
       perror("connect to server failed");
       abort();
     }
 
+  /* everything looks good, since we are expecting a
+     message from the server in this example, let's try receiving a
+     message from the socket. this call will block until some data
+     has been received */
+  //count = recv(sock, buffer, size, 0);
+  /*if (count < 0)
+    {
+      perror("receive failure");
+      abort();
+    }
+     */
+  /* in this simple example, the message is a string, 
+     we expect the last byte of the string to be 0, i.e. end of string */
+ /* if (buffer[count-1] != 0)
+    {
+       In general, TCP recv can return any number of bytes, not
+	 necessarily forming a complete message, so you need to
+	 parse the input to see if a complete message has been received.
+         if not, more calls to recv is needed to get a complete message.
+      
+      printf("Message incomplete, something is still being transmitted\n");
+    } 
+  else
+    {
+      printf("Here is what we got: %s", buffer);
+    }
+*/
     looptime = inputCount;
-    while (looptime > 0){
+  while (looptime > 0){
+      
+       
       datasize = inputSize - 10;
-      looptime--;	//still have inputCount messages to send
+
+      looptime = looptime - 1; //still have inputCount messages to send
       
-      //size at the beginning of the data package (int unsigned short)
-      *(unsigned short*)sendbuffer = (unsigned short)htons(inputSize);
-      
+      *(unsigned short*)sendbuffer = (unsigned short)htons(inputSize);//size at the beginning of the data package (int unsigned short)
+    
+     
+
+       
       stdinBuffer = malloc(sizeof(char) * (datasize));
-      for (x = 0; x < datasize; x++)
-          stdinBuffer[x] = 'a' + x % 26;
+      
+     
+      for (x = 0; x < datasize; x++) {
+          stdinBuffer[x] = 'a' + x%26;
+          
+      }
       
       gettimeofday(&time,NULL);//get the current time
       messagesentSEC = (int) time.tv_sec;
@@ -124,24 +165,36 @@ int main(int argc, char** argv) {
            *(char *) (sendbuffer + 10 + i) = stdinBuffer[i];
       }
      
-      // send the message and receive response immediately
-      send(sock, sendbuffer, inputSize, 0);
-      recv(sock, buffer, inputSize, 0);
-
-      gettimeofday(&time,NULL);//get the current time
-      messagegetSEC = (int)time.tv_sec;
-      messagegetUSEC = (int) time.tv_usec;
-
-      //calculate the latency
-      if (messagegetUSEC >= messagesentUSEC) {
-          durationSEC = messagegetSEC - messagesentSEC;
-          durationUSEC = messagegetUSEC - messagesentUSEC;
-      }else{
-          durationSEC = messagegetSEC - messagesentSEC - 1;
-          durationUSEC = 1000000 + messagegetUSEC - messagesentUSEC;
+      alreadysend = 0;
+      sendcount = send(sock, sendbuffer, inputSize, 0);
+      while (alreadysend < sendcount) {
+          send(sock, sendbuffer, inputSize-alreadysend, 0);
+          while (alreadysend < sendcount) {// --------------------------!!!!!need to add functions for jump out this while loop if the client is recieving forever!!!!!-------
+              returncount = recv(sock, buffer, inputSize, 0);
+              printf("recieved: %d\n",returncount);
+              gettimeofday(&time,NULL);//get the current time
+              alreadysend = alreadysend + returncount;
+              messagegetSEC = (int)time.tv_sec;
+              messagegetUSEC = (int) time.tv_usec;
+              //calculate the latency
+              if (messagegetUSEC >= messagesentUSEC) {
+                  durationSEC = messagegetSEC - messagesentSEC;
+                  durationUSEC = messagegetUSEC - messagesentUSEC;
+                  messagesentSEC = messagegetSEC;
+                  messagesentUSEC = messagegetUSEC;
+              }else{
+                  durationSEC = messagegetSEC - messagesentSEC - 1;
+                  durationUSEC = 1000000 + messagegetUSEC - messagesentUSEC;
+                  messagesentSEC = messagegetSEC;
+                  messagesentUSEC = messagegetUSEC;
+              }
+              totalLatencySEC = totalLatencySEC + durationSEC;
+              totalLatencyUSEC = totalLatencyUSEC + durationUSEC;
+              sendbuffer += alreadysend;
+          }
+          
       }
-      totalLatencySEC = totalLatencySEC + durationSEC;
-      totalLatencyUSEC = totalLatencyUSEC + durationUSEC;
+      
       
       //clear data
       messagegetSEC = 0;
@@ -151,6 +204,7 @@ int main(int argc, char** argv) {
       durationSEC = 0;
       durationUSEC = 0;
   }
+    
     
     result = 0;
     remainer = 0;
