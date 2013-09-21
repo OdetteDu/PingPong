@@ -100,13 +100,14 @@ int sendData(int fd, off_t offset, struct node *client)
 	char *temp;
 	int readCount, sendCount;
 
-	if (client->pending_fd < 0)
+	if (client->pending_fd < 0) {
 		/* this is the new request */
 		sendCount = send(client->socket, rspMsg[0], strlen(rspMsg[0]), 0);
-
-	if (sendCount < 0) {
-		perror("error sending HTTP head to a client");
-		return -3;
+		if (sendCount < 0) {
+			/* Some internal error occurs */
+			perror("error sending HTTP head to a client");
+			return -3;
+		}
 	}
 
 	readCount = lseek(fd, offset, SEEK_SET);
