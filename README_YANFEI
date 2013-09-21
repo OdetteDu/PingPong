@@ -1,9 +1,0 @@
-
-Last changed time: 2:10 on Sep 14th, 2013
-
-How compile the server:
-> gcc server.c common.c pingpong.c webserver.c
-
-the root directory for web-server mode is "./file"
-
-

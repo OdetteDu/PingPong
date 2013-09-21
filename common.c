@@ -202,7 +202,7 @@ void runServer(int sock, int mode, char* rootDir)
 		{
 			FD_SET(current->socket, &read_set);
 
-			if (current->pending_data)
+			if (current->pending_data || current->pending_fd > 0)
 				FD_SET(current->socket, &write_set);
 
 			if (current->socket > max)
@@ -244,7 +244,7 @@ void runServer(int sock, int mode, char* rootDir)
 						pingpongSendAgain(current, &head);
 						continue;
 					}
-
+					
 					count = send(current->socket, current->sendbuf, current->pending_data, MSG_DONTWAIT);
 					if (count <= 0)
 					{
@@ -266,6 +266,9 @@ void runServer(int sock, int mode, char* rootDir)
 					else {
 						/* update the pending_date value*/
 						current->pending_data -= count;
+						if (current->pending_data == 0) // send file again
+							sendFile(current->pending_fd, current->pending_index, current, &head);
+						
 					}
 
 					continue;
@@ -275,14 +278,8 @@ void runServer(int sock, int mode, char* rootDir)
 				{
 					if (mode == MODE_PP)
 						PPreadClient(current, &head);
-					else if (mode == MODE_SV) {
-						if (current->pending_fd > 0) {
-							if (current->pending_data == 0) // unfinished HTTP request
-								sendFile(current->pending_fd, current->pending_index, current, &head);
-						}
-						else	// new HTTP requent
-							SVreadClient(current, &head, rootDir);
-					}
+					else if (mode == MODE_SV) // new HTTP requent
+						SVreadClient(current, &head, rootDir);
 				}
 			}
 		}
