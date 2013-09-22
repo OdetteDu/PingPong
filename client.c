@@ -10,7 +10,7 @@
 #include <sys/time.h>
 #include <string.h>
 
-/* ping-pong client, Kai Wu's version 1. takes four parameters, the server host name,
+/* ping-pong client, Kai Wu's version 1.2. takes four parameters, the server host name,
  the server port number, size of message to send and No. of message exchanges to perform
  
  ->
@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
   /* server port number */
   unsigned short server_port = atoi (argv[2]);
 
-  char *buffer, *sendbuffer, *stdinBuffer;
+    char *buffer, *sendbuffer, *stdinBuffer, *sendbufferpointer;
   struct timeval time; //get the current time
     char* inputSizecheck = argv[3];
     int inputSizecheckint = atoi(argv[3]);
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
       
       *(unsigned short*)sendbuffer = (unsigned short)htons(inputSize);//size at the beginning of the data package (int unsigned short)
     
-     
+      sendbufferpointer = sendbuffer;
 
        
       stdinBuffer = malloc(sizeof(char) * (datasize));
@@ -166,34 +166,38 @@ int main(int argc, char** argv) {
       }
      
       alreadysend = 0;
-      sendcount = send(sock, sendbuffer, inputSize, 0);
+      sendcount = send(sock, sendbufferpointer, inputSize, 0);
       while (alreadysend < sendcount) {
-          send(sock, sendbuffer, inputSize-alreadysend, 0);
           while (alreadysend < sendcount) {// --------------------------!!!!!need to add functions for jump out this while loop if the client is recieving forever!!!!!-------
               returncount = recv(sock, buffer, inputSize, 0);
               printf("recieved: %d\n",returncount);
-              gettimeofday(&time,NULL);//get the current time
-              alreadysend = alreadysend + returncount;
-              messagegetSEC = (int)time.tv_sec;
-              messagegetUSEC = (int) time.tv_usec;
-              //calculate the latency
-              if (messagegetUSEC >= messagesentUSEC) {
-                  durationSEC = messagegetSEC - messagesentSEC;
-                  durationUSEC = messagegetUSEC - messagesentUSEC;
-                  messagesentSEC = messagegetSEC;
-                  messagesentUSEC = messagegetUSEC;
-              }else{
-                  durationSEC = messagegetSEC - messagesentSEC - 1;
-                  durationUSEC = 1000000 + messagegetUSEC - messagesentUSEC;
-                  messagesentSEC = messagegetSEC;
-                  messagesentUSEC = messagegetUSEC;
-              }
+              alreadysend += returncount;
+              sendbufferpointer += alreadysend;
+          }
+          if(alreadysend >= sendcount){
+             printf("the sending process done!%d times left\n",looptime);
+             break;
+          }
+          printf("Need to send more data!\n");
+          send(sock, sendbuffer, inputSize-alreadysend, 0);
+      }
+      
+      gettimeofday(&time,NULL);//get the current time
+      messagegetSEC = (int)time.tv_sec;
+      messagegetUSEC = (int) time.tv_usec;
+      //calculate the latency
+      if (messagegetUSEC >= messagesentUSEC) {
+        durationSEC = messagegetSEC - messagesentSEC;
+        durationUSEC = messagegetUSEC - messagesentUSEC;
+        }else{
+            durationSEC = messagegetSEC - messagesentSEC - 1;
+            durationUSEC = 1000000 + messagegetUSEC - messagesentUSEC;
+            }
               totalLatencySEC = totalLatencySEC + durationSEC;
               totalLatencyUSEC = totalLatencyUSEC + durationUSEC;
-              sendbuffer += alreadysend;
-          }
           
-      }
+          
+      
       
       
       //clear data
